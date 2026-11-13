@@ -6,8 +6,11 @@ import (
 )
 
 // cutOnBoundary returns the largest index ≤ limit that lands on a UTF-8 rune
-// boundary, preferring a space in the back half of the range so cuts fall on
-// word boundaries when possible.
+// boundary, preferring a sentence end (". " / "! " / "? " — terminator
+// followed by a space) in the back half of the range so the text after the
+// cut begins with the next sentence, and falling back to a plain space so
+// cuts land on word boundaries. A decimal dot ("18.7km") has no following
+// space and never matches the sentence rule.
 func cutOnBoundary(s string, limit int) int {
 	if limit >= len(s) {
 		return len(s)
@@ -18,6 +21,15 @@ func cutOnBoundary(s string, limit int) int {
 	cut := limit
 	for cut > 0 && !utf8.RuneStart(s[cut]) {
 		cut--
+	}
+	best := -1
+	for _, term := range [...]string{". ", "! ", "? "} {
+		if idx := strings.LastIndex(s[:cut], term); idx > best {
+			best = idx
+		}
+	}
+	if best >= 0 && best+1 > limit/2 {
+		return best + 1 // keep the terminator; the space starts the next cut
 	}
 	if idx := strings.LastIndex(s[:cut], " "); idx > limit/2 {
 		cut = idx
